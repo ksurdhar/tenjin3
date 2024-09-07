@@ -5,10 +5,8 @@ import {
   addDoc,
   serverTimestamp,
   deleteDoc,
-  updateDoc,
   doc,
   getDocs,
-  arrayUnion,
 } from 'firebase/firestore'
 
 function NewVideo() {
@@ -49,8 +47,14 @@ function NewVideo() {
     const videoDoc = await addDoc(collection(db, 'videos'), {
       title,
       uploadedAt: serverTimestamp(),
-      phrases: [], // Initialize phrases array
     })
+
+    const phrasesSubcollectionRef = collection(
+      db,
+      'videos',
+      videoDoc.id,
+      'phrases'
+    )
 
     eventSource.onmessage = async (event) => {
       const data = JSON.parse(event.data)
@@ -73,9 +77,9 @@ function NewVideo() {
             })
           )
 
-          await updateDoc(videoDoc, {
-            phrases: arrayUnion(...phrases),
-          })
+          await Promise.all(
+            phrases.map((phrase) => addDoc(phrasesSubcollectionRef, phrase))
+          )
         } else if (data.error) {
           setStatus(`Error in chunk ${data.chunkIndex}: ${data.error}`)
         }
