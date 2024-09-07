@@ -5,19 +5,28 @@ import { collection, getDocs } from 'firebase/firestore'
 import { db } from './firebaseConfig'
 import { Link } from 'react-router-dom'
 import NewVideo from './NewVideo'
+import VideoDetail from './VideoDetail'
 
 function Home() {
   const [count, setCount] = useState(0)
   const [data, setData] = useState<any[]>([])
+  const [selectedVideo, setSelectedVideo] = useState<string>('')
 
   useEffect(() => {
     const getData = async () => {
       const querySnapshot = await getDocs(collection(db, 'videos'))
-      const data = querySnapshot.docs.map((doc) => doc.data())
+      const data = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
       setData(data)
     }
     getData()
   }, [])
+
+  const handleSelectChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedVideo(event.target.value)
+  }
 
   return (
     <>
@@ -30,7 +39,17 @@ function Home() {
           Edit <code>src/App.tsx</code> and save to test HMR
         </p>
       </div>
-      {data && <pre>{JSON.stringify(data, null, 2)}</pre>}
+      {data && (
+        <select value={selectedVideo} onChange={handleSelectChange}>
+          <option value="">Select a video</option>
+          {data.map((video) => (
+            <option key={video.id} value={video.id}>
+              {video.title}
+            </option>
+          ))}
+        </select>
+      )}
+      {selectedVideo && <Link to={`/video/${selectedVideo}`}>Go to Video</Link>}
       <p className="read-the-docs">
         Click on the Vite and React logos to learn more
       </p>
@@ -50,6 +69,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/new-video" element={<NewVideo />} />
+        <Route path="/video/:id" element={<VideoDetail />} />
       </Routes>
     </Router>
   )
