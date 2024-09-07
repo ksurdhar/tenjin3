@@ -1,6 +1,15 @@
 import { useState } from 'react'
 import { db } from './firebaseConfig'
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  deleteDoc,
+  updateDoc,
+  doc,
+  getDocs,
+  arrayUnion,
+} from 'firebase/firestore'
 
 function NewVideo() {
   const [japaneseText, setJapaneseText] = useState('')
@@ -37,6 +46,12 @@ function NewVideo() {
       `http://localhost:3000/api/translate/${id}`
     )
 
+    const videoDoc = await addDoc(collection(db, 'videos'), {
+      title,
+      uploadedAt: serverTimestamp(),
+      phrases: [], // Initialize phrases array
+    })
+
     eventSource.onmessage = async (event) => {
       const data = JSON.parse(event.data)
 
@@ -51,24 +66,16 @@ function NewVideo() {
         if (data.data) {
           setTranslationData((prev) => ({ ...prev, ...data.data }))
 
-          const videoDoc = await addDoc(collection(db, 'videos'), {
-            title,
-            uploadedAt: serverTimestamp(),
-          })
-
-          const phrasesCollection = collection(
-            db,
-            'videos',
-            videoDoc.id,
-            'phrases'
+          const phrases = Object.entries(data.data).map(
+            ([timestamp, value]) => ({
+              timestamp,
+              ...(typeof value === 'object' && value !== null ? value : {}),
+            })
           )
-          for (const [key, value] of Object.entries(data.data)) {
-            if (typeof value === 'object' && value !== null) {
-              await addDoc(phrasesCollection, { timestamp: key, ...value })
-            } else {
-              console.log(`Skipping invalid value at ${key}:`, value)
-            }
-          }
+
+          await updateDoc(videoDoc, {
+            phrases: arrayUnion(...phrases),
+          })
         } else if (data.error) {
           setStatus(`Error in chunk ${data.chunkIndex}: ${data.error}`)
         }
@@ -85,6 +92,18 @@ function NewVideo() {
       console.log('error', error)
       eventSource.close()
     }
+  }
+
+  const deleteAllVideos = async () => {
+    const videosCollection = collection(db, 'videos')
+    const videoDocs = await getDocs(videosCollection)
+
+    const deletePromises = videoDocs.docs.map((videoDoc) =>
+      deleteDoc(doc(db, 'videos', videoDoc.id))
+    )
+    await Promise.all(deletePromises)
+
+    console.log('All videos deleted')
   }
 
   return (
@@ -112,6 +131,7 @@ function NewVideo() {
       )}
       <p>{status}</p>
       {translationData && <pre>{JSON.stringify(translationData, null, 2)}</pre>}
+      <button onClick={deleteAllVideos}>Delete All Videos</button>
     </div>
   )
 }
