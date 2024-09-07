@@ -1,29 +1,32 @@
 import { useEffect, useState } from 'react'
 import './App.css'
+import { getFirestore, collection, getDocs } from 'firebase/firestore'
+import { initializeApp } from 'firebase/app'
+
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+}
+
+initializeApp(firebaseConfig)
+const db = getFirestore()
 
 function App() {
   const [count, setCount] = useState(0)
-  const [data, setData] = useState(null)
+  const [data, setData] = useState<any[]>([])
 
   useEffect(() => {
     const getData = async () => {
-      const result = await fetchData()
-      setData(result)
+      const querySnapshot = await getDocs(collection(db, 'videos'))
+      const data = querySnapshot.docs.map((doc) => doc.data())
+      setData(data)
     }
     getData()
   }, [])
-
-  const fetchData = async () => {
-    try {
-      const response = await fetch(`http://localhost:3000/your-endpoint`)
-      if (!response.ok) {
-        throw new Error('Network response was not ok')
-      }
-      return await response.json()
-    } catch (error) {
-      console.error('There was a problem with the fetch operation:', error)
-    }
-  }
 
   return (
     <>
