@@ -1,0 +1,8 @@
+{
+  "name": "tenjin3",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ]
+}
