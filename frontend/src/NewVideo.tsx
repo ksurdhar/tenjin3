@@ -6,28 +6,51 @@ function NewVideo() {
   const [japaneseText, setJapaneseText] = useState('')
   const [title, setTitle] = useState('')
   const [status, setStatus] = useState('')
-  const [translationData, setTranslationData] = useState(null)
+  const [translationData, setTranslationData] = useState<Record<
+    string,
+    any
+  > | null>(null)
   const [loading, setLoading] = useState(false)
+  const [progress, setProgress] = useState({
+    totalChunks: 0,
+    completedChunks: 0,
+  })
 
   const handleSubmit = async () => {
     setLoading(true)
-    try {
-      const response = await fetch('http://localhost:3000/api/translate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ text: japaneseText }),
-      })
+    setStatus('')
+    setTranslationData(null)
+    setProgress({ totalChunks: 0, completedChunks: 0 })
 
-      const data = await response.json()
+    const response = await fetch('http://localhost:3000/api/translate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text: japaneseText }),
+    })
 
-      if (data.success) {
-        console.log(data)
-        setStatus('Translation successful.')
-        setTranslationData(data.data)
+    const { id, totalChunks } = await response.json()
+    setProgress((prev) => ({ ...prev, totalChunks }))
 
-        if (typeof data.data === 'object' && data.data !== null) {
+    const eventSource = new EventSource(
+      `http://localhost:3000/api/translate/${id}`
+    )
+
+    eventSource.onmessage = async (event) => {
+      const data = JSON.parse(event.data)
+
+      if (data.totalChunks) {
+        setProgress((prev) => ({ ...prev, totalChunks: data.totalChunks }))
+      } else if (data.chunkIndex !== undefined) {
+        setProgress((prev) => ({
+          ...prev,
+          completedChunks: prev.completedChunks + 1,
+        }))
+
+        if (data.data) {
+          setTranslationData((prev) => ({ ...prev, ...data.data }))
+
           const videoDoc = await addDoc(collection(db, 'videos'), {
             title,
             uploadedAt: serverTimestamp(),
@@ -46,19 +69,21 @@ function NewVideo() {
               console.log(`Skipping invalid value at ${key}:`, value)
             }
           }
-        } else {
-          setStatus('Translation data is not in the expected format.')
+        } else if (data.error) {
+          setStatus(`Error in chunk ${data.chunkIndex}: ${data.error}`)
         }
-      } else {
-        setStatus('Translation failed.')
-        setTranslationData(null)
+      } else if (data.done) {
+        setLoading(false)
+        setStatus('Translation completed.')
+        eventSource.close()
       }
-    } catch (error) {
+    }
+
+    eventSource.onerror = (error) => {
+      setLoading(false)
       setStatus('An error occurred.')
       console.log('error', error)
-      setTranslationData(null)
-    } finally {
-      setLoading(false)
+      eventSource.close()
     }
   }
 
@@ -79,7 +104,13 @@ function NewVideo() {
       <button onClick={handleSubmit} disabled={loading}>
         Submit
       </button>
-      {loading && <p>Loading...</p>} <p>{status}</p>
+      {loading && (
+        <p>
+          Loading... {progress.completedChunks}/{progress.totalChunks} chunks
+          completed
+        </p>
+      )}
+      <p>{status}</p>
       {translationData && <pre>{JSON.stringify(translationData, null, 2)}</pre>}
     </div>
   )
