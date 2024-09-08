@@ -3,7 +3,8 @@
   "private": true,
   "workspaces": [
     "frontend",
-    "backend"
+    "backend",
+    "mobile"
   ],
   "dependencies": {
     "react-router-dom": "^6.26.1"
